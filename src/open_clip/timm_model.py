@@ -10,9 +10,20 @@ import torch.nn as nn
 
 try:
     import timm
-    from timm.models.layers import Mlp, to_2tuple
-    from timm.models.layers.attention_pool2d import RotAttentionPool2d
-    from timm.models.layers.attention_pool2d import AttentionPool2d as AbsAttentionPool2d
+    try:
+        # timm >= 1.0.0
+        from timm.layers import Mlp, to_2tuple
+        try:
+            from timm.layers import RotAttentionPool2d
+            from timm.layers import AttentionPool2d as AbsAttentionPool2d
+        except ImportError:
+            RotAttentionPool2d = None
+            AbsAttentionPool2d = None
+    except ImportError:
+        # timm < 1.0.0
+        from timm.models.layers import Mlp, to_2tuple
+        from timm.models.layers.attention_pool2d import RotAttentionPool2d
+        from timm.models.layers.attention_pool2d import AttentionPool2d as AbsAttentionPool2d
 except ImportError as e:
     timm = None
 
@@ -40,7 +51,9 @@ class TimmModel(nn.Module):
 
         self.image_size = to_2tuple(image_size)
         self.trunk = timm.create_model(model_name, pretrained=pretrained)
-        feat_size = self.trunk.default_cfg.get('pool_size', None)
+        # compatibilité timm >= 1.0.0 (pretrained_cfg) et timm < 1.0.0 (default_cfg)
+        cfg = getattr(self.trunk, 'pretrained_cfg', None) or getattr(self.trunk, 'default_cfg', {})
+        feat_size = cfg.get('pool_size', None)
         feature_ndim = 1 if not feat_size else 2
         if pool in ('abs_attn', 'rot_attn'):
             assert feature_ndim == 2
